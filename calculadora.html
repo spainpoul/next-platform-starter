@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Rendimientos</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #005a9c;
+            text-align: center;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        .form-grid div {
+            display: flex;
+            flex-direction: column;
+        }
+        label {
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            padding: 12px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #e9ecef;
+            color: #333;
+        }
+        .results {
+            margin-top: 30px;
+        }
+        #chart-container {
+            margin-top: 30px;
+            height: 400px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Calculadora de Rendimiento Compuesto</h1>
+    <form id="calcForm">
+        <div class="form-grid">
+            <div>
+                <label for="capitalInicial">Capital Inicial (€):</label>
+                <input type="number" id="capitalInicial" value="10000" required>
+            </div>
+            <div>
+                <label for="fechaInicio">Fecha de Inicio:</label>
+                <input type="date" id="fechaInicio" required>
+            </div>
+            <div>
+                <label for="rendimientoMensual">Rendimiento Mensual (%):</label>
+                <input type="number" id="rendimientoMensual" step="0.01" value="0.7" required>
+            </div>
+             <div>
+                <label for="duracion">Duración (meses):</label>
+                <input type="number" id="duracion" value="24" required>
+            </div>
+        </div>
+        <button type="submit">Calcular</button>
+    </form>
+
+    <div class="results" id="results" style="display:none;">
+        <h2>Resultados</h2>
+        <div id="chart-container">
+            <canvas id="rendimientoChart"></canvas>
+        </div>
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Rendimiento del Mes</th>
+                    <th>Capital Resultante</th>
+                </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Establecer la fecha de hoy por defecto en el campo de fecha
+    document.getElementById('fechaInicio').valueAsDate = new Date();
+
+    const form = document.getElementById('calcForm');
+    const resultsDiv = document.getElementById('results');
+    const resultsBody = document.getElementById('resultsBody');
+    let myChart = null;
+
+    form.addEventListener('submit', function(event) {
+        event.preventDefault(); // Evita que la página se recargue
+
+        const capitalInicial = parseFloat(document.getElementById('capitalInicial').value);
+        const fechaInicio = new Date(document.getElementById('fechaInicio').value);
+        const duracion = parseInt(document.getElementById('duracion').value);
+        
+        // CAMBIO AQUÍ: Se lee el valor del nuevo campo de rendimiento mensual
+        const rendimientoMensual = parseFloat(document.getElementById('rendimientoMensual').value);
+
+        // CAMBIO AQUÍ: Se ajusta la validación para la nueva variable
+        if (isNaN(capitalInicial) || isNaN(rendimientoMensual) || isNaN(duracion) || !fechaInicio.getTime()) {
+            alert('Por favor, introduce valores válidos.');
+            return;
+        }
+
+        // Limpiar resultados anteriores
+        resultsBody.innerHTML = '';
+        if (myChart) {
+            myChart.destroy();
+        }
+        
+        // CAMBIO AQUÍ: La conversión a decimal es ahora directa, sin dividir por 12
+        const rendimientoMensualDecimal = rendimientoMensual / 100;
+        let capitalActual = capitalInicial;
+
+        const labels = [];
+        const dataCapital = [];
+        
+        const formatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
+
+        for (let i = 0; i < duracion; i++) {
+            let fechaMes = new Date(fechaInicio);
+            fechaMes.setMonth(fechaInicio.getMonth() + i + 1);
+            
+            const rendimientoEsteMes = capitalActual * rendimientoMensualDecimal;
+            capitalActual += rendimientoEsteMes;
+
+            // Añadir datos a la tabla
+            const newRow = resultsBody.insertRow();
+            newRow.innerHTML = `
+                <td>${fechaMes.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</td>
+                <td>${formatter.format(rendimientoEsteMes)}</td>
+                <td>${formatter.format(capitalActual)}</td>
+            `;
+
+            // Preparar datos para la gráfica
+            labels.push(fechaMes.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' }));
+            dataCapital.push(capitalActual.toFixed(2));
+        }
+
+        // Mostrar los resultados
+        resultsDiv.style.display = 'block';
+
+        // Crear la gráfica
+        const ctx = document.getElementById('rendimientoChart').getContext('2d');
+        myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Capital Resultante (€)',
+                    data: dataCapital,
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        ticks: {
+                            callback: function(value) {
+                                return formatter.format(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
